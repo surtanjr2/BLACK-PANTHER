@@ -27,7 +27,7 @@
     "@whiskeysockets/baileys": "^7.0.0-rc.9",
     "adm-zip": "^0.5.17",
     "axios": "^1.16.1",
-    "better-sqlite3": "^12.10.0",
+    "better-sqlite3": "^12.10.1",
     "chalk": "^4.1.2",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
