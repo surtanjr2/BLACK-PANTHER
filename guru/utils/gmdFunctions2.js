@@ -264,98 +264,6 @@ async function PantherAntiEdit(sock, update) {
     }
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  👁️  ANTI VIEW-ONCE  (deep unwrap — silva-md style)
-//  Handles: viewOnceMessage, viewOnceMessageV2,
-//           viewOnceMessageV2Extension, ephemeral wrappers,
-//           documentWithCaptionMessage wrappers.
-//  Forwards image/video/audio to owner DM.
-// ═══════════════════════════════════════════════════════════════
-
-async function PantherAntiViewOnce(sock, msg) {
-    try {
-        if (!msg?.message || msg?.key?.fromMe) return;
-
-        const rawMsg = msg.message;
-
-        // ── Unwrap outer containers (ephemeral / documentWithCaption) ──
-        const unwrapped =
-            rawMsg?.ephemeralMessage?.message ||
-            rawMsg?.documentWithCaptionMessage?.message ||
-            rawMsg;
-
-        // ── Extract the actual viewOnce payload ─────────────────────
-        const vMsg =
-            unwrapped?.viewOnceMessageV2?.message ||
-            unwrapped?.viewOnceMessageV2Extension?.message ||
-            unwrapped?.viewOnceMessage?.message ||
-            rawMsg?.viewOnceMessageV2?.message ||
-            rawMsg?.viewOnceMessageV2Extension?.message ||
-            rawMsg?.viewOnceMessage?.message ||
-            null;
-
-        if (!vMsg) return;
-
-        const { downloadContentFromMessage } = require('@whiskeysockets/baileys');
-
-        const from      = msg.key.remoteJid;
-        const senderJid = msg.key.participant || from;
-        const senderNum = senderJid.split('@')[0].split(':')[0];
-        const chatLabel = from.endsWith('@g.us') ? `Group` : 'Private';
-
-        // Owner DM
-        let ownerJid = (sock.user?.id || '').split(':')[0].split('@')[0];
-        ownerJid = ownerJid
-            ? `${ownerJid}@s.whatsapp.net`
-            : `${config.OWNER_NUMBER}@s.whatsapp.net`;
-
-        const header = `👁️ *Anti-ViewOnce*\n👤 From: @${senderNum}\n📌 ${chatLabel}`;
-
-        // Try each media type
-        for (const [mediaKey, mediaType] of [
-            ['imageMessage', 'image'],
-            ['videoMessage', 'video'],
-            ['audioMessage', 'audio'],
-        ]) {
-            const mediaMsg = vMsg[mediaKey];
-            if (!mediaMsg) continue;
-
-            try {
-                // Stream download
-                const stream = await downloadContentFromMessage(mediaMsg, mediaType);
-                let buffer = Buffer.alloc(0);
-                for await (const chunk of stream) buffer = Buffer.concat([buffer, chunk]);
-
-                if (!buffer.length) continue;
-
-                const mime = mediaMsg.mimetype;
-
-                if (mediaType === 'image') {
-                    await sock.sendMessage(ownerJid, {
-                        image: buffer, caption: header, mimetype: mime || 'image/jpeg',
-                    });
-                } else if (mediaType === 'video') {
-                    await sock.sendMessage(ownerJid, {
-                        video: buffer, caption: header, mimetype: mime || 'video/mp4',
-                    });
-                } else if (mediaType === 'audio') {
-                    const isPtt = (mime || '').includes('ogg') || mediaMsg.ptt === true;
-                    await sock.sendMessage(ownerJid, {
-                        audio: buffer, mimetype: mime || 'audio/ogg; codecs=opus', ptt: isPtt,
-                    });
-                    await sock.sendMessage(ownerJid, { text: header });
-                }
-
-                logger.info('ANTIVIEWONCE', `Forwarded ${mediaType} view-once from @${senderNum} to owner`);
-                return; // done after first media type found
-            } catch (dlErr) {
-                logger.warn('ANTIVIEWONCE', `Download failed (${mediaType}): ${dlErr.message}`);
-            }
-        }
-    } catch (err) {
-        logger.error('ANTIVIEWONCE', err.message);
-    }
-}
 
 // ═══════════════════════════════════════════════════════════════
 //  🟢  PRESENCE
@@ -617,7 +525,6 @@ module.exports = {
     getStoredMessage,
     PantherAntiDelete,
     PantherAntiEdit,
-    PantherAntiViewOnce,
     PantherPresence,
     PantherAutoBio,
     PantherStatusHandler,
